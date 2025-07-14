@@ -20,6 +20,25 @@ from pydub.effects import normalize
 import tempfile
 import io
 
+# LoRA TTS Integration
+try:
+    from lora_tts_engine import LoRATTSEngine, get_lora_tts_engine, initialize_lora_tts
+    LORA_TTS_AVAILABLE = True
+    print("✅ LoRA TTS Engine available")
+except ImportError as e:
+    print(f"⚠️ LoRA TTS Engine not available: {e}")
+    print("   Install dependencies: pip install -r requirements_lora_tts.txt")
+    LORA_TTS_AVAILABLE = False
+
+# Emotional Fallback TTS Integration
+try:
+    from emotional_fallback_tts import get_emotional_fallback_tts
+    EMOTIONAL_FALLBACK_AVAILABLE = True
+    print("✅ Emotional Fallback TTS available")
+except ImportError as e:
+    print(f"⚠️ Emotional Fallback TTS not available: {e}")
+    EMOTIONAL_FALLBACK_AVAILABLE = False
+
 # Set environment variables to handle Unicode properly
 os.environ['PYTHONIOENCODING'] = 'utf-8'
 os.environ['PYTHONUTF8'] = '1'
@@ -199,23 +218,71 @@ class EnhancedTTSEngine:
                 raise HTTPException(status_code=500, detail=f"TTS generation failed: {e2}")
 
     def _generate_with_lora_fallback(self, text: str, emotion: str, lang: str, session_id: str) -> str:
-        """Primary TTS with LoRA (currently falls back to optimized gTTS)"""
+        """Primary TTS with LoRA implementation"""
 
-        # TODO: Implement actual LoRA TTS here
-        # For now, this simulates LoRA failure and falls back to optimized gTTS
+        if not LORA_TTS_AVAILABLE:
+            raise Exception("LoRA TTS not available, falling back to gTTS")
 
-        # Simulate LoRA attempt (would be actual LoRA call in production)
-        lora_available = False  # Set to True when LoRA is implemented
+        try:
+            # Initialize LoRA TTS engine if not already done
+            lora_engine = get_lora_tts_engine()
 
-        if lora_available:
-            # LoRA TTS implementation would go here
-            pass
-        else:
-            # Fall back to optimized gTTS
-            raise Exception("LoRA not available, falling back to gTTS")
+            if not lora_engine.is_available():
+                raise Exception("LoRA TTS engine not properly initialized")
+
+            # Generate speech with LoRA TTS
+            output_path = os.path.join(TTS_OUTPUT_DIR, f"{session_id}_lora.wav")
+
+            self.logger.info(f"[LORA] Generating speech with emotion: {emotion}")
+
+            # Use LoRA TTS with emotional control
+            lora_audio_path = lora_engine.generate_speech(
+                text=text,
+                emotion=emotion,
+                language=lang,
+                output_path=output_path
+            )
+
+            # Convert to MP3 for consistency with the rest of the pipeline
+            mp3_path = os.path.join(TTS_OUTPUT_DIR, f"{session_id}_lora.mp3")
+            self._convert_wav_to_mp3(lora_audio_path, mp3_path)
+
+            # Apply additional optimizations
+            optimized_path = self._optimize_audio(mp3_path, emotion, session_id)
+
+            self.logger.info(f"[OK] LoRA TTS generated successfully: {optimized_path}")
+            return optimized_path
+
+        except Exception as e:
+            self.logger.warning(f"LoRA TTS generation failed: {e}")
+            raise Exception(f"LoRA TTS failed: {e}")
 
     def _generate_basic_optimized_tts(self, text: str, emotion: str, lang: str, session_id: str) -> str:
-        """Generate optimized TTS with basic gTTS"""
+        """Generate optimized TTS with enhanced emotional processing"""
+
+        try:
+            # Try enhanced emotional fallback first
+            if EMOTIONAL_FALLBACK_AVAILABLE:
+                self.logger.info(f"[EMOTION] Using enhanced emotional fallback for: {emotion}")
+
+                emotional_tts = get_emotional_fallback_tts()
+                emotional_path = emotional_tts.generate_emotional_speech(
+                    text=text,
+                    emotion=emotion,
+                    language=lang
+                )
+
+                # Apply additional optimizations
+                optimized_path = self._optimize_audio(emotional_path, emotion, session_id)
+
+                self.logger.info(f"[OK] Enhanced emotional TTS generated: {optimized_path}")
+                return optimized_path
+
+        except Exception as e:
+            self.logger.warning(f"Enhanced emotional fallback failed: {e}")
+
+        # Fallback to basic gTTS with standard optimizations
+        self.logger.info("[FALLBACK] Using basic gTTS with standard optimizations")
 
         # Generate base audio with gTTS
         base_mp3_path = os.path.join(TTS_OUTPUT_DIR, f"{session_id}_base.mp3")
@@ -329,9 +396,33 @@ class EnhancedTTSEngine:
             self.logger.warning(f"Synthetic tone generation failed: {e}")
             return AudioSegment.silent(duration=100)  # Return short silence as fallback
 
+    def _convert_wav_to_mp3(self, wav_path: str, mp3_path: str):
+        """Convert WAV file to MP3"""
+        try:
+            audio = AudioSegment.from_wav(wav_path)
+            audio.export(mp3_path, format="mp3", bitrate=f"{self.config.compression_quality}k")
+            self.logger.info(f"[OK] Converted WAV to MP3: {mp3_path}")
+        except Exception as e:
+            self.logger.error(f"WAV to MP3 conversion failed: {e}")
+            raise
+
 # Global TTS configuration and engine
 tts_config = TTSConfig()
 enhanced_tts = EnhancedTTSEngine(tts_config)
+
+# Initialize LoRA TTS Engine
+if LORA_TTS_AVAILABLE:
+    try:
+        print("🚀 Initializing LoRA TTS Engine...")
+        lora_initialized = initialize_lora_tts()
+        if lora_initialized:
+            print("✅ LoRA TTS Engine initialized successfully")
+        else:
+            print("⚠️ LoRA TTS Engine initialization failed")
+            LORA_TTS_AVAILABLE = False
+    except Exception as e:
+        print(f"❌ LoRA TTS Engine initialization error: {e}")
+        LORA_TTS_AVAILABLE = False
 
 
 
@@ -768,13 +859,22 @@ create_default_transition_tones()
 
 if __name__ == "__main__":
     import uvicorn
-    print("[ROCKET] Starting Enhanced Avatar Engine with:")
-    print(f"   • Audio compression: {'[OK]' if tts_config.enable_audio_compression else '[ERROR]'}")
-    print(f"   • Transition tones: {'[OK]' if tts_config.enable_transition_tones else '[ERROR]'}")
-    print(f"   • Compression quality: {tts_config.compression_quality} kbps")
-    print(f"   • Target sample rate: {tts_config.target_sample_rate} Hz")
-    print(f"   • Available emotions: {len(tts_config.transition_tones)}")
-    print(f"   • Multimodal sentiment: {'[OK]' if SENTIMENT_INTEGRATION_AVAILABLE else '[ERROR]'}")
-    print(f"   • LoRA fallback pipeline: [OK] (falls back to optimized gTTS)")
+    print("🎭 Enhanced Avatar Engine with Emotional TTS")
+    print("=" * 50)
+    print(f"   🎵 Audio compression: {'✅' if tts_config.enable_audio_compression else '❌'}")
+    print(f"   🔔 Transition tones: {'✅' if tts_config.enable_transition_tones else '❌'}")
+    print(f"   📊 Compression quality: {tts_config.compression_quality} kbps")
+    print(f"   🎚️  Target sample rate: {tts_config.target_sample_rate} Hz")
+    print(f"   😊 Available emotions: {len(tts_config.transition_tones)}")
+    print(f"   🧠 Multimodal sentiment: {'✅' if SENTIMENT_INTEGRATION_AVAILABLE else '❌'}")
+    print(f"   🎯 LoRA TTS Engine: {'✅' if LORA_TTS_AVAILABLE else '⚠️  (using fallback)'}")
+    print(f"   🔄 Emotional Fallback: {'✅' if EMOTIONAL_FALLBACK_AVAILABLE else '❌'}")
+    print(f"   🛡️  Fallback pipeline: ✅ (Enhanced gTTS with emotional processing)")
+    print("\n🚀 TTS Pipeline Priority:")
+    print("   1. LoRA TTS with emotional control")
+    print("   2. Enhanced gTTS with emotional processing")
+    print("   3. Basic gTTS with optimizations")
+    print(f"\n🌐 Server starting at: http://192.168.1.102:8002")
+    print("=" * 50)
     uvicorn.run(app, host="192.168.1.102", port=8002)
  
