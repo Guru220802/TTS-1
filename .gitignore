@@ -1,0 +1,96 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+cache/
+temp/
+*.log
+
+# Generated content (keep structure but ignore files)
+tts/tts_outputs/*.mp3
+tts/tts_outputs/*.wav
+!tts/tts_outputs/.gitkeep
+
+results/*.mp4
+results/*.json
+!results/.gitkeep
+
+# Audio/Video files (except essential ones)
+*.mp3
+*.wav
+*.mp4
+*.avi
+
+# Keep essential transition sounds and avatars
+!transition_sounds/*.wav
+!avatars/*.jpg
+!avatars/*.png
+
+# Multimodal sentiment cache and models
+multimodal_sentiment/cache/
+multimodal_sentiment/models/
+multimodal_sentiment/checkpoints/
+multimodal_sentiment/logs/
+multimodal_sentiment/venv/
+multimodal_sentiment/*.json
+multimodal_sentiment/*.log
+
+# Wav2Lip generated content
+Wav2Lip/temp/
+Wav2Lip/results/
+Wav2Lip/checkpoints/*.pth
+
+# Gender recognition models
+gender-recognition-by-voice/logs/
+gender-recognition-by-voice/results/
+gender-recognition-by-voice/data/
+
+# Environment variables
+.env
+
+# Model files
+*.pth
+*.h5
+*.pkl
+*.model
+*.npy
+*.bundle
+
+# Large binary files
+*.dll
+*.so
+*.dylib
+
+# Misc
+.DS_Store
+Thumbs.db

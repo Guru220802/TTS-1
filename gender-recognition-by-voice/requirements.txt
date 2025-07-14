@@ -1,0 +1,7 @@
+tensorflow
+scikit-learn
+numpy>=1.19.0,<2.0
+pandas
+tqdm
+pyaudio
+librosa
