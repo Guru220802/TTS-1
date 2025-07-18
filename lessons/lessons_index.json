@@ -1,0 +1,55 @@
+{
+  "version": "1.0.0",
+  "created_at": "2025-07-18T07:10:17.401993+00:00",
+  "total_lessons": 4,
+  "lessons": {
+    "lesson_34af1a27": {
+      "title": "Day 1: Introduction to Solar System",
+      "category": "science",
+      "status": "draft",
+      "created_at": "2025-07-18T07:10:17.402996+00:00",
+      "assets_ready": false
+    },
+    "lesson_20a9eaff": {
+      "title": "Day 2: Basic Addition and Subtraction Magic",
+      "category": "math",
+      "status": "draft",
+      "created_at": "2025-07-18T07:10:17.405016+00:00",
+      "assets_ready": false
+    },
+    "lesson_0adc71e2": {
+      "title": "Day 3: Story Time - The Brave Little Mouse",
+      "category": "language",
+      "status": "draft",
+      "created_at": "2025-07-18T07:10:17.450118+00:00",
+      "assets_ready": false
+    },
+    "lesson_297e72a3": {
+      "title": "Day 4: Ancient Egypt and the Mighty Pyramids",
+      "category": "history",
+      "status": "draft",
+      "created_at": "2025-07-18T07:10:17.452180+00:00",
+      "assets_ready": false
+    }
+  },
+  "categories": {
+    "science": [
+      "lesson_34af1a27"
+    ],
+    "math": [
+      "lesson_20a9eaff"
+    ],
+    "language": [
+      "lesson_0adc71e2"
+    ],
+    "history": [
+      "lesson_297e72a3"
+    ],
+    "general": []
+  },
+  "metadata": {
+    "last_updated": "2025-07-18T07:10:17.453182+00:00",
+    "total_assets": 0,
+    "cloud_storage_enabled": true
+  }
+}

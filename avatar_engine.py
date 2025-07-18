@@ -19,6 +19,13 @@ from pydub import AudioSegment
 from pydub.effects import normalize
 import tempfile
 import io
+import boto3
+from botocore.exceptions import ClientError
+import asyncio
+import aiofiles
+from typing import Optional, Dict, Any
+from lesson_manager import lesson_manager
+from sync_map_generator import sync_map_generator
 
 # LoRA TTS Integration
 try:
@@ -179,6 +186,89 @@ class TTSConfig:
             'inspiring': {'freq': 1200, 'duration': 350, 'fade': 60},
             'grounded': {'freq': 450, 'duration': 400, 'fade': 90}
         }
+
+# Cloud Storage Manager
+class CloudStorageManager:
+    """Manages cloud storage operations for TTS assets"""
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.s3_client = None
+        self.bucket_name = os.getenv('AWS_S3_BUCKET', 'tts-assets-bucket')
+        self.cdn_base_url = os.getenv('CDN_BASE_URL', f'https://{self.bucket_name}.s3.amazonaws.com')
+
+        # Initialize S3 client if credentials are available
+        try:
+            self.s3_client = boto3.client(
+                's3',
+                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                region_name=os.getenv('AWS_REGION', 'us-east-1')
+            )
+            self.logger.info("✅ AWS S3 client initialized")
+        except Exception as e:
+            self.logger.warning(f"⚠️ S3 client initialization failed: {e}")
+
+    async def upload_asset(self, local_path: str, s3_key: str, content_type: str = 'application/octet-stream') -> Optional[str]:
+        """Upload asset to S3 and return public URL"""
+        if not self.s3_client:
+            self.logger.warning("S3 client not available, skipping upload")
+            return None
+
+        try:
+            # Upload file to S3
+            self.s3_client.upload_file(
+                local_path,
+                self.bucket_name,
+                s3_key,
+                ExtraArgs={
+                    'ContentType': content_type,
+                    'ACL': 'public-read'
+                }
+            )
+
+            # Return public URL
+            public_url = f"{self.cdn_base_url}/{s3_key}"
+            self.logger.info(f"✅ Uploaded {local_path} to {public_url}")
+            return public_url
+
+        except ClientError as e:
+            self.logger.error(f"❌ S3 upload failed: {e}")
+            return None
+
+    async def upload_lesson_assets(self, session_id: str, audio_path: str, video_path: str, metadata: Dict[str, Any]) -> Dict[str, str]:
+        """Upload complete lesson assets and return URLs"""
+        urls = {}
+
+        # Upload audio file
+        audio_key = f"lessons/audio/{session_id}.mp3"
+        audio_url = await self.upload_asset(audio_path, audio_key, 'audio/mpeg')
+        if audio_url:
+            urls['audio_url'] = audio_url
+
+        # Upload video file
+        video_key = f"lessons/video/{session_id}.mp4"
+        video_url = await self.upload_asset(video_path, video_key, 'video/mp4')
+        if video_url:
+            urls['video_url'] = video_url
+
+        # Upload metadata as JSON
+        metadata_key = f"lessons/metadata/{session_id}.json"
+        metadata_path = f"temp_metadata_{session_id}.json"
+
+        # Save metadata temporarily
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+
+        metadata_url = await self.upload_asset(metadata_path, metadata_key, 'application/json')
+        if metadata_url:
+            urls['metadata_url'] = metadata_url
+
+        # Clean up temp file
+        if os.path.exists(metadata_path):
+            os.remove(metadata_path)
+
+        return urls
 
 # Enhanced TTS Engine with Fallback Pipeline
 class EnhancedTTSEngine:
@@ -409,6 +499,7 @@ class EnhancedTTSEngine:
 # Global TTS configuration and engine
 tts_config = TTSConfig()
 enhanced_tts = EnhancedTTSEngine(tts_config)
+cloud_storage = CloudStorageManager()
 
 # Initialize LoRA TTS Engine
 if LORA_TTS_AVAILABLE:
@@ -716,6 +807,50 @@ async def generate_and_sync(
             user_persona=user_persona
         )
 
+        # Generate sync map for UI controls and visual sync
+        try:
+            sync_map = sync_map_generator.generate_sync_map(
+                audio_path=optimized_audio_path,
+                text=original_text if target_lang == 'en' else text,
+                session_id=session_id
+            )
+
+            # Save sync map
+            sync_map_path = sync_map_generator.save_sync_map(sync_map)
+
+            # Add sync map to metadata
+            metadata['sync_map'] = sync_map
+            metadata['sync_map_path'] = sync_map_path
+
+            print(f"✅ Generated sync map with {len(sync_map.get('word_timestamps', []))} word timestamps")
+
+        except Exception as e:
+            print(f"⚠️ Sync map generation failed: {e}")
+            # Continue without sync map
+
+        # Upload assets to cloud storage
+        try:
+            cloud_urls = await cloud_storage.upload_lesson_assets(
+                session_id=session_id,
+                audio_path=optimized_audio_path,
+                video_path=output_video,
+                metadata=metadata
+            )
+
+            # Add cloud URLs to metadata
+            metadata.update(cloud_urls)
+
+            # Save updated metadata with cloud URLs
+            metadata_path = os.path.join(RESULTS_DIR, f"metadata_{session_id}.json")
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+            print(f"✅ Assets uploaded to cloud: {cloud_urls}")
+
+        except Exception as e:
+            print(f"⚠️ Cloud upload failed: {e}")
+            # Continue without cloud URLs
+
         return FileResponse(
             path=output_video,
             filename=f"lipsync_{session_id}.mp4",
@@ -833,6 +968,379 @@ async def set_compression_quality(quality: int = Form(...)):
         "message": f"Compression quality set to {quality} kbps",
         "compression_quality": tts_config.compression_quality
     }
+
+# Lesson Management API Endpoints
+@app.post("/api/lessons/create")
+async def create_lesson(
+    title: str = Form(...),
+    content: str = Form(...),
+    category: str = Form(default="general"),
+    target_age: str = Form(default="elementary"),
+    difficulty: str = Form(default="beginner"),
+    duration_minutes: int = Form(default=5)
+):
+    """Create a new lesson"""
+    try:
+        lesson_id = lesson_manager.create_lesson(
+            title=title,
+            content=content,
+            category=category,
+            target_age=target_age,
+            difficulty=difficulty,
+            duration_minutes=duration_minutes
+        )
+
+        return {
+            "status": "success",
+            "lesson_id": lesson_id,
+            "message": f"Lesson '{title}' created successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create lesson: {str(e)}")
+
+@app.get("/api/lessons/{lesson_id}")
+async def get_lesson(lesson_id: str):
+    """Get lesson data by ID"""
+    lesson_data = lesson_manager.get_lesson(lesson_id)
+
+    if not lesson_data:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    return lesson_data
+
+@app.get("/api/lessons")
+async def get_lessons_index():
+    """Get complete lessons index"""
+    return lesson_manager.get_lessons_index()
+
+@app.get("/api/lessons/category/{category}")
+async def get_lessons_by_category(category: str):
+    """Get all lessons in a category"""
+    lessons = lesson_manager.get_lessons_by_category(category)
+    return {
+        "category": category,
+        "total_lessons": len(lessons),
+        "lessons": lessons
+    }
+
+@app.post("/api/lessons/{lesson_id}/generate-assets")
+async def generate_lesson_assets(lesson_id: str):
+    """Generate TTS assets for a specific lesson"""
+    lesson_data = lesson_manager.get_lesson(lesson_id)
+
+    if not lesson_data:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    try:
+        # Generate TTS assets using the lesson content
+        session_id = str(uuid.uuid4())
+        content = lesson_data["content"]
+        tts_emotion = lesson_data["tts_config"]["emotion"]
+
+        # Use enhanced TTS engine
+        optimized_audio_path = enhanced_tts.generate_speech(
+            text=content,
+            emotion=tts_emotion,
+            lang='en'
+        )
+
+        # Convert to WAV for Wav2Lip
+        wav_path = os.path.join(TTS_OUTPUT_DIR, f"{session_id}.wav")
+        convert_mp3_to_wav(optimized_audio_path, wav_path)
+
+        # Generate video with female avatar
+        avatar_path = select_avatar("female")
+        output_video = os.path.join(RESULTS_DIR, f"{session_id}.mp4")
+        run_wav2lip(wav_path, avatar_path, output_video)
+
+        # Generate metadata
+        metadata = generate_video_metadata(
+            session_id=session_id,
+            text=content,
+            language="en",
+            gender="female",
+            avatar_path=avatar_path,
+            sentiment_analysis={"sentiment": "neutral", "confidence": 0.8, "tts_emotion": tts_emotion},
+            user_persona="educational"
+        )
+
+        # Generate sync map for lesson
+        try:
+            sync_map = sync_map_generator.generate_sync_map(
+                audio_path=optimized_audio_path,
+                text=content,
+                session_id=session_id
+            )
+
+            # Save sync map
+            sync_map_path = sync_map_generator.save_sync_map(sync_map)
+            metadata['sync_map'] = sync_map
+            metadata['sync_map_path'] = sync_map_path
+
+        except Exception as e:
+            print(f"⚠️ Lesson sync map generation failed: {e}")
+
+        # Upload to cloud storage
+        cloud_urls = await cloud_storage.upload_lesson_assets(
+            session_id=session_id,
+            audio_path=optimized_audio_path,
+            video_path=output_video,
+            metadata=metadata
+        )
+
+        # Update lesson with assets
+        lesson_manager.update_lesson_assets(lesson_id, cloud_urls)
+
+        return {
+            "status": "success",
+            "lesson_id": lesson_id,
+            "session_id": session_id,
+            "assets": cloud_urls,
+            "message": "Assets generated and uploaded successfully"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Asset generation failed: {str(e)}")
+
+@app.post("/api/lessons/create-samples")
+async def create_sample_lessons():
+    """Create 4 sample lessons for team testing"""
+    try:
+        lesson_ids = lesson_manager.create_sample_lessons()
+        return {
+            "status": "success",
+            "created_lessons": lesson_ids,
+            "total_created": len(lesson_ids),
+            "message": "Sample lessons created successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create sample lessons: {str(e)}")
+
+# Sync Map API Endpoints
+@app.get("/api/sync-map/{session_id}")
+async def get_sync_map(session_id: str):
+    """Get sync map data for a session"""
+    sync_map_path = f"sync_maps/sync_map_{session_id}.json"
+
+    if not os.path.exists(sync_map_path):
+        raise HTTPException(status_code=404, detail="Sync map not found")
+
+    try:
+        with open(sync_map_path, 'r') as f:
+            sync_map = json.load(f)
+        return sync_map
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load sync map: {str(e)}")
+
+@app.post("/api/generate-sync-map")
+async def generate_sync_map_endpoint(
+    audio_path: str = Form(...),
+    text: str = Form(...),
+    session_id: str = Form(default=None)
+):
+    """Generate sync map for existing audio file"""
+
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    if not os.path.exists(audio_path):
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    try:
+        sync_map = sync_map_generator.generate_sync_map(
+            audio_path=audio_path,
+            text=text,
+            session_id=session_id
+        )
+
+        sync_map_path = sync_map_generator.save_sync_map(sync_map)
+
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "sync_map_path": sync_map_path,
+            "sync_map": sync_map,
+            "message": "Sync map generated successfully"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync map generation failed: {str(e)}")
+
+# Asset Fetch API Endpoints for Vedant
+@app.get("/api/assets/{session_id}")
+async def get_session_assets(session_id: str):
+    """Get all assets for a session (audio, video, metadata, sync map)"""
+
+    # Check if session exists
+    metadata_path = os.path.join(RESULTS_DIR, f"metadata_{session_id}.json")
+    if not os.path.exists(metadata_path):
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        # Load metadata
+        with open(metadata_path, 'r', encoding='utf-8') as f:
+            metadata = json.load(f)
+
+        # Collect all asset paths
+        assets = {
+            "session_id": session_id,
+            "metadata": metadata,
+            "local_paths": {
+                "video": os.path.join(RESULTS_DIR, f"{session_id}.mp4"),
+                "audio": None,  # Will be found dynamically
+                "sync_map": f"sync_maps/sync_map_{session_id}.json"
+            },
+            "cloud_urls": {
+                "video_url": metadata.get("video_url"),
+                "audio_url": metadata.get("audio_url"),
+                "metadata_url": metadata.get("metadata_url")
+            },
+            "status": {
+                "video_exists": os.path.exists(os.path.join(RESULTS_DIR, f"{session_id}.mp4")),
+                "sync_map_exists": os.path.exists(f"sync_maps/sync_map_{session_id}.json"),
+                "cloud_uploaded": bool(metadata.get("video_url"))
+            }
+        }
+
+        # Find audio file (could be optimized.mp3 or base.mp3)
+        for audio_suffix in ["_optimized.mp3", "_enhanced.mp3", "_base.mp3", ".wav"]:
+            audio_path = os.path.join(TTS_OUTPUT_DIR, f"{session_id}{audio_suffix}")
+            if os.path.exists(audio_path):
+                assets["local_paths"]["audio"] = audio_path
+                assets["status"]["audio_exists"] = True
+                break
+        else:
+            assets["status"]["audio_exists"] = False
+
+        return assets
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get assets: {str(e)}")
+
+@app.get("/api/assets/batch")
+async def get_batch_assets(session_ids: str):
+    """Get assets for multiple sessions (comma-separated session IDs)"""
+
+    session_id_list = [sid.strip() for sid in session_ids.split(',')]
+    batch_assets = {}
+
+    for session_id in session_id_list:
+        try:
+            assets = await get_session_assets(session_id)
+            batch_assets[session_id] = assets
+        except HTTPException:
+            batch_assets[session_id] = {"error": "Session not found"}
+        except Exception as e:
+            batch_assets[session_id] = {"error": str(e)}
+
+    return {
+        "total_sessions": len(session_id_list),
+        "successful": len([a for a in batch_assets.values() if "error" not in a]),
+        "failed": len([a for a in batch_assets.values() if "error" in a]),
+        "assets": batch_assets
+    }
+
+@app.get("/api/assets/compressed/{session_id}")
+async def get_compressed_assets(session_id: str, format: str = "mp3"):
+    """Get compressed audio asset for a session"""
+
+    # Look for compressed audio files
+    compressed_paths = [
+        os.path.join(TTS_OUTPUT_DIR, f"{session_id}_optimized.mp3"),
+        os.path.join(TTS_OUTPUT_DIR, f"{session_id}_enhanced.mp3"),
+        os.path.join(TTS_OUTPUT_DIR, f"{session_id}_base.mp3")
+    ]
+
+    for path in compressed_paths:
+        if os.path.exists(path):
+            return FileResponse(
+                path=path,
+                filename=f"compressed_audio_{session_id}.mp3",
+                media_type="audio/mpeg"
+            )
+
+    raise HTTPException(status_code=404, detail="Compressed audio not found")
+
+@app.get("/api/lessons/assets/mapping")
+async def get_lesson_asset_mapping():
+    """Get mapping of all lessons to their assets"""
+
+    lessons_index = lesson_manager.get_lessons_index()
+    asset_mapping = {
+        "total_lessons": lessons_index["total_lessons"],
+        "lessons_with_assets": 0,
+        "lessons_without_assets": 0,
+        "mapping": {}
+    }
+
+    for lesson_id, lesson_info in lessons_index["lessons"].items():
+        lesson_data = lesson_manager.get_lesson(lesson_id)
+
+        if lesson_data:
+            has_assets = bool(lesson_data["assets"]["audio_url"])
+
+            asset_mapping["mapping"][lesson_id] = {
+                "title": lesson_data["title"],
+                "category": lesson_data["category"],
+                "status": lesson_data["status"],
+                "has_assets": has_assets,
+                "assets": lesson_data["assets"],
+                "cloud_urls": {
+                    "audio_url": lesson_data["assets"]["audio_url"],
+                    "video_url": lesson_data["assets"]["video_url"],
+                    "metadata_url": lesson_data["assets"]["metadata_url"]
+                }
+            }
+
+            if has_assets:
+                asset_mapping["lessons_with_assets"] += 1
+            else:
+                asset_mapping["lessons_without_assets"] += 1
+
+    return asset_mapping
+
+@app.get("/api/assets/download/{session_id}/{asset_type}")
+async def download_asset(session_id: str, asset_type: str):
+    """Download specific asset type (audio, video, metadata, sync_map)"""
+
+    if asset_type == "video":
+        file_path = os.path.join(RESULTS_DIR, f"{session_id}.mp4")
+        media_type = "video/mp4"
+        filename = f"video_{session_id}.mp4"
+
+    elif asset_type == "audio":
+        # Find the best audio file
+        for suffix in ["_optimized.mp3", "_enhanced.mp3", "_base.mp3"]:
+            file_path = os.path.join(TTS_OUTPUT_DIR, f"{session_id}{suffix}")
+            if os.path.exists(file_path):
+                break
+        else:
+            raise HTTPException(status_code=404, detail="Audio file not found")
+
+        media_type = "audio/mpeg"
+        filename = f"audio_{session_id}.mp3"
+
+    elif asset_type == "metadata":
+        file_path = os.path.join(RESULTS_DIR, f"metadata_{session_id}.json")
+        media_type = "application/json"
+        filename = f"metadata_{session_id}.json"
+
+    elif asset_type == "sync_map":
+        file_path = f"sync_maps/sync_map_{session_id}.json"
+        media_type = "application/json"
+        filename = f"sync_map_{session_id}.json"
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid asset type. Use: audio, video, metadata, sync_map")
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"{asset_type.title()} file not found")
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type=media_type
+    )
 
 # Utility function to create default transition tones
 def create_default_transition_tones():
