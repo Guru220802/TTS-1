@@ -1,0 +1,36 @@
+{
+  "lesson_id": "lesson_34af1a27",
+  "title": "Day 1: Introduction to Solar System",
+  "content": "Welcome to our exciting journey through space! Today we'll explore the amazing solar system with its eight planets, bright stars, and mysterious moons. \n\nThe Sun is the center of our solar system, a giant ball of hot gas that gives us light and warmth. Mercury is the closest planet to the Sun, while Neptune is the farthest away. \n\nEarth is our special home planet, the only one we know that has life. It has water, air, and the perfect temperature for plants, animals, and people to live.\n\nGet ready to discover the wonders of our cosmic neighborhood! We'll learn about each planet's unique features and what makes them special.",
+  "category": "science",
+  "target_age": "elementary",
+  "difficulty": "beginner",
+  "duration_minutes": 8,
+  "created_at": "2025-07-18T07:10:17.402996+00:00",
+  "status": "draft",
+  "assets": {
+    "audio_url": null,
+    "video_url": null,
+    "metadata_url": null,
+    "sync_map": null
+  },
+  "tts_config": {
+    "emotion": "balanced",
+    "speed": 1.0,
+    "pitch": 0.0,
+    "voice_style": "educational"
+  },
+  "team_assignments": {
+    "content_review": "akash",
+    "ui_integration": "rishabh",
+    "api_endpoints": "vedant",
+    "visual_sync": "shashank"
+  },
+  "production_status": {
+    "content_approved": false,
+    "assets_generated": false,
+    "cloud_uploaded": false,
+    "ui_integrated": false,
+    "qa_tested": false
+  }
+}

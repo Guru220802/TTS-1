@@ -1,0 +1,36 @@
+{
+  "lesson_id": "lesson_20a9eaff",
+  "title": "Day 2: Basic Addition and Subtraction Magic",
+  "content": "Let's learn the magic of numbers! Addition means putting things together to make more, while subtraction means taking things away.\n\nImagine you have 3 red apples and someone gives you 2 more green apples. How many apples do you have now? That's right - 5 apples! We added 3 plus 2 to get 5.\n\nNow, if you eat 1 apple, how many are left? We subtract 1 from 5 to get 4 apples remaining.\n\nWe'll practice with fun examples using toys, fruits, and animals! Math is everywhere around us, and once you understand these basics, you'll see numbers in a whole new way.",
+  "category": "math",
+  "target_age": "elementary",
+  "difficulty": "beginner",
+  "duration_minutes": 6,
+  "created_at": "2025-07-18T07:10:17.405016+00:00",
+  "status": "draft",
+  "assets": {
+    "audio_url": null,
+    "video_url": null,
+    "metadata_url": null,
+    "sync_map": null
+  },
+  "tts_config": {
+    "emotion": "balanced",
+    "speed": 1.0,
+    "pitch": 0.0,
+    "voice_style": "educational"
+  },
+  "team_assignments": {
+    "content_review": "akash",
+    "ui_integration": "rishabh",
+    "api_endpoints": "vedant",
+    "visual_sync": "shashank"
+  },
+  "production_status": {
+    "content_approved": false,
+    "assets_generated": false,
+    "cloud_uploaded": false,
+    "ui_integrated": false,
+    "qa_tested": false
+  }
+}

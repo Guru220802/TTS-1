@@ -1,0 +1,32 @@
+{
+  "session_id": "ef5b80d2-969e-4825-88b2-ed6f4fb2ea7d",
+  "language": "en",
+  "language_name": "English",
+  "script": "Latin",
+  "text_length": 51,
+  "gender": "female",
+  "avatar": "pht2.jpg",
+  "timestamp": "2025-07-14T07:50:58.586542+00:00",
+  "video_format": "mp4",
+  "user_persona": "youth",
+  "sentiment_analysis": {
+    "sentiment": "neutral",
+    "confidence": 0.3496212363243103,
+    "tts_emotion": "peaceful",
+    "tone": "calm",
+    "analysis_type": "multimodal_custom",
+    "emotion_intensity": 0.27969698905944823
+  },
+  "tts_parameters": {
+    "speed": 1.8,
+    "pitch": -0.1,
+    "volume": 0.7069924247264862,
+    "emphasis": 0.36992424726486206
+  },
+  "voice_recommendations": {
+    "gender": "neutral",
+    "age_range": "young_adult",
+    "accent": "neutral",
+    "tone_quality": "serene_gentle"
+  }
+}

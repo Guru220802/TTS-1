@@ -1,153 +1,121 @@
-# TTS-LipSync-Translation System
+# 🎤 TTS Integration System
 
-A comprehensive Text-to-Speech system with multilingual translation and avatar lip-sync capabilities.
+## 📋 Project Overview
 
-## 🚀 Features
+A comprehensive Text-to-Speech integration system with multimodal sentiment analysis, cloud storage, and team collaboration features.
 
-- **19 Language Support**: Including Hindi, English, German, and 16+ other languages
-- **Real-time Translation**: Google Gemini API integration with confidence scoring
-- **Gender Detection**: Voice-based gender classification for avatar selection
-- **Lip-Sync Generation**: Realistic avatar videos using Wav2Lip technology
-- **RESTful API**: FastAPI-based endpoints for easy integration
-- **Comprehensive Documentation**: Complete API docs, test cases, and handoff guides
-
-## 🏗️ System Architecture
-
-```
-User Input (Text) → Translation → TTS → Gender Detection → Avatar Selection → Lip-Sync → Video Output
-```
-
-## 📁 Project Structure
+## 🏗️ Repository Structure
 
 ```
 TTS-main/
-├── avatar_engine.py          # Main API service with full pipeline
-├── tts.py                   # Basic TTS service
-├── translation_agent.py     # Translation logic with Gemini API
-├── avatar.py               # Streamlit demo interface
-├── avatars/                # Avatar images (male/female)
-├── tts/tts_outputs/        # Generated audio files
-├── results/                # Generated videos and metadata
-├── gender-recognition-by-voice/  # Gender detection model
-├── Wav2Lip/               # Lip-sync generation
-├── API_DOCUMENTATION.md    # Complete API reference
-├── HANDOFF_README.md       # Team responsibilities guide
-├── TEST_CASES_MULTILINGUAL.md  # Test scenarios
-├── DEMO_SCRIPT_DOCUMENTATION.md  # Demo recording script
-└── TTS_API_Postman_Collection.json  # API testing collection
+├── src/                          # Core application code
+│   ├── api/                      # API endpoints and services
+│   │   ├── avatar_engine.py      # Main TTS API service
+│   │   ├── lesson_manager.py     # Lesson management system
+│   │   ├── sync_map_generator.py # Sync map generation
+│   │   └── tts.py               # Basic TTS service
+│   ├── tts/                     # TTS engine components
+│   │   ├── lora_tts_engine.py   # LoRA TTS implementation
+│   │   ├── translation_agent.py  # Multi-language support
+│   │   └── emotional_fallback_tts.py # Fallback TTS
+│   └── utils/                   # Utility functions
+│
+├── docs/                        # Documentation
+│   ├── team_handoff/           # Team integration guides
+│   ├── api/                    # API documentation
+│   └── deployment/             # Deployment guides
+│
+├── config/                      # Configuration files
+├── scripts/                     # Utility scripts
+├── assets/                      # Static assets (avatars, sounds, models)
+├── data/                        # Generated data and outputs
+├── logs/                        # Application logs
+│
+├── Wav2Lip/                     # Lip-sync generation (external)
+├── gender-recognition-by-voice/ # Voice gender detection (external)
+└── multimodal_sentiment/        # Sentiment analysis (external)
 ```
 
-## 🚦 Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 ```bash
-pip install fastapi uvicorn pyttsx3 gtts librosa keras tensorflow
+# Install Python dependencies
+pip install -r config/requirements_lora_tts.txt
+
+# Set up environment variables
+cp config/.env.example .env
+# Edit .env with your configuration
 ```
 
-### Running the Services
-
-**Basic TTS Service:**
+### Running the System
 ```bash
-python tts.py
-# Runs on http://192.168.0.119:8001
+# Start the main API server
+python src/api/avatar_engine.py
+
+# Server will be available at: http://localhost:8002
 ```
 
-**Avatar Engine (Full Pipeline):**
-```bash
-python avatar_engine.py
-# Runs on http://192.168.0.125:8001
-```
+## 📚 Documentation
 
-**Streamlit Demo:**
-```bash
-streamlit run avatar.py
-```
+- **[Team Handoff Guide](docs/team_handoff/TEAM_HANDOFF_COMPLETE.md)** - Complete integration guide
+- **[API Documentation](docs/api/API_DOCUMENTATION.md)** - API endpoints and usage
+- **[Deployment Guide](docs/deployment/DEPLOYMENT_SETUP_GUIDE.md)** - Production deployment
+- **[UI Integration](docs/team_handoff/RISHABH_UI_INTEGRATION_GUIDE.md)** - Frontend integration guide
 
-## 🔧 API Endpoints
+## 🎯 Features
 
-### Basic TTS Service
-- `GET /` - Health check
-- `POST /api/generate` - Generate audio from text
-- `GET /api/audio/{filename}` - Download audio file
-- `GET /api/list-audio-files` - List generated files
+- ✅ **Enhanced TTS Engine** with emotional control
+- ✅ **Multimodal Sentiment Analysis** for tone adaptation
+- ✅ **Cloud Storage Integration** (AWS S3)
+- ✅ **Sync Maps** for precise UI synchronization
+- ✅ **Lesson Management** with JSON structure
+- ✅ **Asset Management** with automated upload
+- ✅ **Team Integration APIs** for all components
 
-### Avatar Engine Service
-- `GET /` - Health check
-- `POST /api/generate-and-sync` - Full pipeline: Text → Translation → TTS → Video
-- `GET /api/metadata/{session_id}` - Get video metadata
+## 👥 Team Integration
 
-## 🌍 Supported Languages
-
-**Indian Languages:** Hindi, Marathi, Tamil, Telugu, Kannada, Malayalam, Gujarati, Bengali, Punjabi
-
-**International:** English, Spanish, French, German, Chinese, Japanese, Russian, Arabic, Portuguese, Italian
-
-## 📖 Documentation
-
-- **[API Documentation](API_DOCUMENTATION.md)** - Complete API reference
-- **[Handoff Guide](HANDOFF_README.md)** - Team responsibilities and integration
-- **[Test Cases](TEST_CASES_MULTILINGUAL.md)** - Multilingual testing scenarios
-- **[Demo Script](DEMO_SCRIPT_DOCUMENTATION.md)** - Recording guide
-- **[Postman Collection](TTS_API_Postman_Collection.json)** - Ready-to-use API tests
-
-## 👥 Team Handoff
-
-### Vedant - API Integration Layer
-- Service consolidation and optimization
-- Database integration and caching
-- Authentication and rate limiting
-
-### Rishabh - Frontend Hooks & UI Events
-- React/Vue component development
-- State management and event handling
-- WebSocket integration for real-time updates
-
-### Shashank - UX Refinement & UI Controls
-- Advanced media player controls
-- Accessibility features and mobile responsiveness
-- User preferences and export options
+| Team Member | Integration Point | Documentation |
+|-------------|------------------|---------------|
+| **Akash** | Content Review | [Content Review Guide](docs/team_handoff/akash_content_review_summary_20250718_124017.md) |
+| **Rishabh** | UI Integration | [UI Integration Guide](docs/team_handoff/RISHABH_UI_INTEGRATION_GUIDE.md) |
+| **Vedant** | API Integration | [API Documentation](docs/api/API_DOCUMENTATION.md) |
+| **Shashank** | Visual Sync | [Team Handoff Guide](docs/team_handoff/TEAM_HANDOFF_COMPLETE.md) |
 
 ## 🧪 Testing
 
-Import the Postman collection and test these scenarios:
-1. **Hindi Translation Test** - English to Hindi with Devanagari script
-2. **English Baseline Test** - Direct English processing
-3. **German Translation Test** - English to German with proper pronunciation
-
-## 🔄 Example Usage
-
 ```bash
-# Generate Hindi video
-curl -X POST "http://192.168.0.125:8001/api/generate-and-sync" \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "text=Hello, this is a test&target_lang=hi"
+# Run lesson creation test
+python scripts/create_sample_lessons.py
 
-# Generate English audio only
-curl -X POST "http://192.168.0.119:8001/api/generate" \
-     -H "Content-Type: application/x-www-form-urlencoded" \
-     -d "text=Hello, this is a test"
+# Test TTS generation
+python scripts/testing/test_emotional_tts.py
+
+# API health check
+curl http://localhost:8002/
 ```
 
-## 📊 Performance Metrics
+## 📊 Production Status
 
-- Audio generation: <5 seconds
-- Video generation: <30 seconds
-- Translation accuracy: >85% for all languages
-- Supported text length: Up to 500 characters
+- ✅ **4 Lesson Samples** created and ready
+- ✅ **API Endpoints** implemented and documented
+- ✅ **Cloud Storage** configured and tested
+- ✅ **Sync Maps** generated for UI integration
+- ✅ **Team Documentation** complete
 
-## 🛠️ Technology Stack
+## 🔧 Configuration
 
-- **Backend**: FastAPI, Python
-- **TTS**: pyttsx3, gTTS
-- **Translation**: Google Gemini API
-- **Gender Detection**: Keras/TensorFlow
-- **Lip-Sync**: Wav2Lip
-- **Audio Processing**: librosa, FFmpeg
+Key configuration files:
+- `config/requirements_lora_tts.txt` - Python dependencies
+- `config/TTS_API_Postman_Collection.json` - API testing collection
+- `.env` - Environment variables (create from template)
 
-## 📝 License
+## 📞 Support
 
-This project is ready for production deployment and team handoff.
+- **Technical Issues**: Check logs in `logs/` directory
+- **API Problems**: Review `docs/api/API_DOCUMENTATION.md`
+- **Integration Help**: See team-specific guides in `docs/team_handoff/`
 
 ---
 
-**Status**: ✅ Ready for Integration | 📋 Fully Documented | 🧪 Tested
+**🎉 Ready for team integration and production deployment!**
